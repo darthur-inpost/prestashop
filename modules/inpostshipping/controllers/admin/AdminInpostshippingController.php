@@ -68,10 +68,10 @@ class AdminInpostShippingController extends ModuleAdminController
 
 		// Set up the Bulk actions
 		$this->bulk_actions = array(
-			'edit' => array(
-				'text'    => $this->l('Edit selected'),
-				'confirm' => $this->l('Edit selected items?'),
-				'icon'    => 'icon-trash'
+			'label' => array(
+				'text' => $this->l('Print Label'),
+				'confirm' => $this->l('Print labels for selected items?'),
+				'icon' => 'icon-print'
 			)
 		);
 
@@ -202,38 +202,9 @@ class AdminInpostShippingController extends ModuleAdminController
 		return $list;
 	}
 
-	public function processMakeDailyCalculation()
-	{
-		$return = true;
-		$condition_ids = Condition::getIdsDailyCalculation();
-		foreach ($condition_ids as $id)
-		{
-			$cond = new Condition((int)$id);
-			$return &= $cond->processCalculation();
-		}
-		return $return;
-	}
-
 	///
 	// postProcess
 	//
-/* Array
-(
-    [id_inpostshipping] => 11
-    [submitAddinpostshipping] => 1
-    [inpost_name] => 
-    [address] => 
-    [order_id] => 27
-    [parcel_description] => Order #: 27
-    [parcel_receiver_phone] => 125125125
-    [parcel_receiver_email] => darthur@inpost.co.uk
-    [parcel_size] => A
-    [parcel_status] => Created
-    [parcel_tmp_id] => 
-    [parcel_target_machine_id] => UKHOD18551
-    [return_parcel_id] => 
-    [return_parcel_expiry] => 0
-)*/
 	public function postProcess()
 	{
 		if (Tools::isSubmit('submitAddinpostshipping'))
@@ -265,10 +236,20 @@ class AdminInpostShippingController extends ModuleAdminController
 
 				if (!InpostParcelsTools::create_new_parcel($_POST, $error))
 				{
-					// Display error to the user and don't
-					// save the data.
-					$this->errors[] = Tools::displayError('Failed to create parcel.'.$error);
-					return;
+					// We can create a parcel ID but fail
+					// to pay for it.
+					if (trim($_POST['parcel_id']) != '')
+					{
+						$this->errors[] = Tools::displayWarning($this->l('Failed to pay for parcel.').$error);
+					}
+					else
+					{
+						// Display error to the user
+						// and don't save the data.
+						$this->errors[] = Tools::displayError($this->l('Failed to create parcel.').$error);
+
+						return;
+					}
 				}
 
 				// Make sure that the user can only change
@@ -285,25 +266,13 @@ class AdminInpostShippingController extends ModuleAdminController
 				{
 					// Display error to the user and don't
 					// save the data.
-					$this->errors[] = Tools::displayError('Failed to create parcel.'.$error);
+					$this->errors[] = Tools::displayError($this->l('Failed to update parcel. ').$error);
 					return;
 				}
 			}
 		}
 
 		parent::postProcess();
-	}
-
-	public function ajaxProcessSavePreactivationRequest()
-	{
-		$isoUser = Context::getContext()->language->iso_code;
-		$isoCountry = Context::getContext()->country->iso_code;
-		$employee = new Employee((int)Context::getContext()->cookie->id_employee);
-		$firstname = $employee->firstname;
-		$lastname = $employee->lastname;
-		$email = $employee->email;
-		$return = @Tools::file_get_contents('http://api.prestashop.com/partner/premium/set_request.php?iso_country='.strtoupper($isoCountry).'&iso_lang='.strtolower($isoUser).'&host='.urlencode($_SERVER['HTTP_HOST']).'&ps_version='._PS_VERSION_.'&ps_creation='._PS_CREATION_DATE_.'&partner='.htmlentities(Tools::getValue('module')).'&shop='.urlencode(Configuration::get('PS_SHOP_NAME')).'&email='.urlencode($email).'&firstname='.urlencode($firstname).'&lastname='.urlencode($lastname).'&type=home');
-		die($return);
 	}
 
 	///
@@ -647,4 +616,100 @@ class AdminInpostShippingController extends ModuleAdminController
 
 		return $result;
 	}
+
+	///
+	// processBulkLabel
+	//
+	// @brief Get all of the parcels and print their labels
+	//
+	protected function processBulkLabel()
+	{
+		if (is_array($this->boxes) && !empty($this->boxes))
+		{
+			$parcels = array();
+
+			$dbQuery = Db::getInstance();
+			foreach ($this->boxes as $id_order)
+			{
+				$result = $dbQuery->query('SELECT parcel_id from '._DB_PREFIX_.'inpostshipping WHERE id_inpostshipping = '.$id_order);
+
+				// We should only get back one row.
+				$row = $dbQuery->nextRow($result);
+
+				if (trim($row['parcel_id']) != '')
+				{
+					$parcels[] = $row['parcel_id'];
+				}
+			}
+
+			if (count($parcels) > 0)
+			{
+				$label = '';
+				$error = '';
+
+				if (!InpostParcelsTools::inpost_create_labels($parcels, $label, $error))
+				{
+					$this->errors[] = Tools::displayError('Failed to create label. '.$error);
+					return;
+				}
+
+				if (ob_get_contents())
+				{
+					$this->Error('Some data has already been output, can\'t send PDF file');
+					return;
+				}
+				header('Content-Description: File Transfer');
+				if (headers_sent())
+				{
+					$this->Error('Some data has already been output to browser, can\'t send PDF file');
+				}
+
+				$this->_update_sticker_creation_date($parcels);
+
+				header('Cache-Control: private, must-revalidate, post-check=0, pre-check=0, max-age=1');
+				header('Pragma: public');
+				header('Expires: Sat, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+				header('Last-Modified: '.gmdate('D, d M Y H:i:s').' GMT');
+				// force download dialog
+				if (strpos(php_sapi_name(), 'cgi') === false)
+				{
+					header('Content-Type: application/force-download');
+					header('Content-Type: application/octet-stream', false);
+					header('Content-Type: application/download', false);
+					header('Content-Type: application/pdf', false);
+				}
+				else
+				{
+					header('Content-Type: application/pdf');
+				}
+
+				// use the Content-Disposition header to supply
+				// a recommended filename
+				header('Content-Disposition: attachment; filename="Label_'.date('Ymd_Hi').'.pdf"');
+				header('Content-Transfer-Encoding: binary');
+				// Restrict the number of characters sent to
+				// the PDF file.
+				header('Content-Length: '.strlen($label));
+
+				echo $label;
+			}
+		}
+	}
+
+	///
+	// _update_sticker_creation_date
+	//
+	// @param Array of parcel id's
+	//
+	private function _update_sticker_creation_date($parcels)
+	{
+		$parcel_id = implode('\',\'', $parcels);
+
+		$dbQuery = Db::getInstance();
+		$result = $dbQuery->update('inpostshipping',
+			array('sticker_creation_date' => date('Y-m-d H:i:s')),
+			'parcel_id in (\''.$parcel_id.'\')',
+			1);
+	}
+
 }

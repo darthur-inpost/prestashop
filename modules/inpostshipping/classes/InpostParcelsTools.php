@@ -10,6 +10,9 @@
 
 class InpostParcelsTools extends ObjectModel
 {
+	///
+	// connectInpostparcels
+	//
 	public static function connectInpostparcels($params = array())
 	{
 		$params = array_merge(
@@ -33,13 +36,17 @@ class InpostParcelsTools extends ObjectModel
 			case 'GET':
 			curl_setopt($ch, CURLOPT_HTTPHEADER, array('X-HTTP-Method-Override: GET') );
 			$getParams = null;
-			if(!empty($params['params'])){
-			foreach($params['params'] as $field_name => $field_value){
-			$getParams .= $field_name.'='.urlencode($field_value).'&';
+			if(!empty($params['params']))
+			{
+				foreach($params['params'] as $field_name => $field_value)
+				{
+					$getParams .= $field_name.'='.urlencode($field_value).'&';
+				}
+				curl_setopt($ch, CURLOPT_URL, $params['url'].$params['ds'].'token='.$params['token'].'&'.$getParams);
 			}
-			curl_setopt($ch, CURLOPT_URL, $params['url'].$params['ds'].'token='.$params['token'].'&'.$getParams);
-			}else{
-			curl_setopt($ch, CURLOPT_URL, $params['url'].$params['ds'].'token='.$params['token']);
+			else
+			{
+				curl_setopt($ch, CURLOPT_URL, $params['url'].$params['ds'].'token='.$params['token']);
 			}
 			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
 			break;
@@ -53,8 +60,8 @@ class InpostParcelsTools extends ObjectModel
 			curl_setopt($ch, CURLOPT_POSTFIELDS, $string);
 			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
 			curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-                        'Content-Type: application/json',
-                        'Content-Length: ' . strlen($string))
+                        	'Content-Type: application/json',
+                        	'Content-Length: ' . strlen($string))
 			);
 			break;
 
@@ -86,6 +93,9 @@ class InpostParcelsTools extends ObjectModel
 		);
 	}
 
+	///
+	// generate
+	//
 	public static function generate($type = 1, $length)
 	{
 		$chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890";
@@ -123,6 +133,9 @@ class InpostParcelsTools extends ObjectModel
 		return $token;
 	}
 
+	///
+	// getParcelStatus
+	//
 	public function getParcelStatus()
 	{
 		return array(
@@ -131,6 +144,9 @@ class InpostParcelsTools extends ObjectModel
 		);
 	}
 
+	///
+	// calculateDimensions
+	//
 	public function calculateDimensions($product_dimensions = array(), $config = array())
 	{
 		$parcelSize = 'A';
@@ -168,13 +184,14 @@ class InpostParcelsTools extends ObjectModel
 			foreach($product_dimensions as $product_dimension)
 			{
 				$dimension = explode('x', $product_dimension);
-				$width = trim(@$dimension[0]);
-				$height = trim(@$dimension[1]);
-				$depth = trim(@$dimension[2]);
+				$width     = trim(@$dimension[0]);
+				$height    = trim(@$dimension[1]);
+				$depth     = trim(@$dimension[2]);
+
 				if($width == 0 || $height == 0 || $depth)
 				{
-				// empty dimension for product
-				continue;
+					// empty dimension for product
+					continue;
 				}
 
                 if(
@@ -186,16 +203,21 @@ class InpostParcelsTools extends ObjectModel
                 }
 
                 $maxSumDimensionsFromProducts = $maxSumDimensionsFromProducts + $width + $height + $depth;
-                if($maxSumDimensionsFromProducts > $maxSumDimensionFromConfigSizeC){
-                    $is_dimension = false;
-                }
-            }
+			if($maxSumDimensionsFromProducts > $maxSumDimensionFromConfigSizeC)
+			{
+				$is_dimension = false;
+			}
+			}
 			if($maxSumDimensionsFromProducts <= $maxDimensionFromConfigSizeA)
 			{
-                $parcelSize = 'A';
-            }elseif($maxSumDimensionsFromProducts <= $maxDimensionFromConfigSizeB){
-                $parcelSize = 'B';
-            }elseif($maxSumDimensionsFromProducts <= $maxDimensionFromConfigSizeC){
+				$parcelSize = 'A';
+			}
+			elseif($maxSumDimensionsFromProducts <= $maxDimensionFromConfigSizeB)
+			{
+				$parcelSize = 'B';
+			}
+			elseif($maxSumDimensionsFromProducts <= $maxDimensionFromConfigSizeC)
+			{
 				$parcelSize = 'C';
 			}
 		}
@@ -273,11 +295,12 @@ class InpostParcelsTools extends ObjectModel
 	///
 	// create_new_parcel
 	//
-	// @param The details of the parcel to be created, array.
+	// @param The details of the parcel to be created, array
+	// @param The error message(s) if there are any
 	//
 	// @return True if processed OK and false otherwise
 	//
-	public static function create_new_parcel(&$parcel_details, $error)
+	public static function create_new_parcel(&$parcel_details, &$error)
 	{
 		$error = '';
 
@@ -312,10 +335,25 @@ class InpostParcelsTools extends ObjectModel
 
 		$parcel_details['parcel_id'] = $ret['result']->id;
 
-		// TODO
 		// PAY for / confirm the parcel.
-		//
-		fred;
+		$params = array(
+			'url' => Configuration::get('IP_UK_API_URL').'parcels/'.$parcel_details['parcel_id'].'/pay',
+			'methodType' => 'POST',
+			'params'     => array(),
+		);
+
+		$ret = InpostParcelsTools::connectInpostparcels($params);
+
+		$info = $ret['info'];
+
+		if ($info['http_code'] != 204)
+		{
+			// An error has occured.
+			$error = 'Error code : '.$info['http_code'].' '.$ret['result'];
+
+			return false;
+		}
+
 		return true;
 	}
 
@@ -326,7 +364,7 @@ class InpostParcelsTools extends ObjectModel
 	//
 	// @return True if processed OK and false otherwise
 	//
-	public static function inpost_update_parcel(&$parcel_details, $error)
+	public static function inpost_update_parcel(&$parcel_details, &$error)
 	{
 		$error = '';
 
@@ -344,14 +382,64 @@ class InpostParcelsTools extends ObjectModel
 		$ret = InpostParcelsTools::connectInpostparcels($params);
 
 		$info = $ret['info'];
-d($ret);
+//d($ret);
 		if ($info['http_code'] != 204)
 		{
 			// An error has occured.
-			$error = 'Error code : '.$info['http_code'].' '.$ret['result'];
+			$error = 'Error code : '.$info['http_code'].' '.json_encode($ret['result']);
 
 			return false;
 		}
+
+		return true;
+	}
+
+	///
+	// inpost_create_labels
+	//
+	// @brief Print out the labels for the parcels
+	// @param The parcel ids in an array
+	//
+	public static function inpost_create_labels($parcels, &$label, &$error)
+	{
+		$label = '';
+		$error = '';
+
+		$parcel_list = implode(';', $parcels);
+
+		$label_format = Configuration::get('IP_UK_LABEL_FORMAT');
+
+		if (strcasecmp($label_format, 'Pdf') == 0)
+		{
+			$label_type = 'normal';
+		}
+		else
+		{
+			$label_type = 'A6P';
+		}
+
+		$params = array(
+			'url' => Configuration::get('IP_UK_API_URL').'stickers/'.$parcel_list,
+			'methodType' => 'GET',
+			'params'     => array(
+				'format' => $label_format,
+				'type'   => $label_type,
+			)
+		);
+
+		$ret = InpostParcelsTools::connectInpostparcels($params);
+
+		$info = $ret['info'];
+
+		if ($info['http_code'] != 200)
+		{
+			// An error has occured.
+			$error = 'Error code : '.$info['http_code'].' '.json_encode($ret['result']);
+
+			return false;
+		}
+
+		$label = base64_decode($ret['result']);
 
 		return true;
 	}
