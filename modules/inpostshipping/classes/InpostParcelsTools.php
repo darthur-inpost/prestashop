@@ -444,4 +444,21 @@ class InpostParcelsTools extends ObjectModel
 		return true;
 	}
 
+	///
+	// inpost_update_parcel_details
+	//
+	// @brief Update the inpost details held for a parcel
+	//
+	public static function inpost_update_parcel_details($parcel_details)
+	{
+		$dbQuery = Db::getInstance();
+
+		$result = $dbQuery->update('inpostshipping',
+			array(
+				'parcel_id'     => $parcel_details['parcel_id'],
+				'parcel_tmp_id' => $parcel_details['parcel_tmp_id'],
+			),
+			'id_inpostshipping = '.$parcel_details['order_id'],
+			1);
+	}
 }

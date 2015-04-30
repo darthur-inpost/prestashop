@@ -68,6 +68,11 @@ class AdminInpostShippingController extends ModuleAdminController
 
 		// Set up the Bulk actions
 		$this->bulk_actions = array(
+			'parcel' => array(
+				'text' => $this->l('Create Parcel'),
+				'confirm' => $this->l('Create parcels for selected items?'),
+				'icon' => 'icon-gift'
+			),
 			'label' => array(
 				'text' => $this->l('Print Label'),
 				'confirm' => $this->l('Print labels for selected items?'),
@@ -706,10 +711,71 @@ class AdminInpostShippingController extends ModuleAdminController
 		$parcel_id = implode('\',\'', $parcels);
 
 		$dbQuery = Db::getInstance();
-		$result = $dbQuery->update('inpostshipping',
+
+		$result  = $dbQuery->update('inpostshipping',
 			array('sticker_creation_date' => date('Y-m-d H:i:s')),
 			'parcel_id in (\''.$parcel_id.'\')',
 			1);
+	}
+
+	///
+	// processBulkParcel
+	//
+	// @brief Get all of the orders and create parcels for them
+	//
+	protected function processBulkParcel()
+	{
+		if (is_array($this->boxes) && !empty($this->boxes))
+		{
+			$dbQuery = Db::getInstance();
+
+			// Check that the user has not added orders which
+			// already have parcels created.
+			foreach ($this->boxes as $id_order)
+			{
+				$result = $dbQuery->query('SELECT * from '._DB_PREFIX_.'inpostshipping WHERE id_inpostshipping = '.$id_order);
+
+				// We should only get back one row.
+				$row = $dbQuery->nextRow($result);
+
+				if (trim($row['parcel_id']) == '')
+				{
+					$error = '';
+
+					$parcel_details = array(
+						'parcel_description'       => $row['parcel_description'],
+						'parcel_receiver_email'    => $row['parcel_receiver_email'],
+						'parcel_receiver_phone'    => $row['parcel_receiver_phone'],
+						'parcel_size'              => $row['parcel_size'],
+						'parcel_target_machine_id' => $row['parcel_target_machine_id'],
+						'parcel_tmp_id'            => '',
+						'parcel_id'                => '',
+						'order_id'                 => $id_order,
+					);
+
+					if (!InpostParcelsTools::create_new_parcel($parcel_details, $error))
+					{
+						// We can create a parcel ID
+						// but fail to pay for it.
+						if (trim($id_order) != '')
+						{
+							$this->errors[] = Tools::displayWarning($this->l('Failed to pay for parcel. Order: ').$id_order.' '.$error);
+						}
+						else
+						{
+							// Display error to
+							// the user and don't
+							// save the data.
+							$this->errors[] = Tools::displayError($this->l('Failed to create parcel.').$error);
+
+							return;
+						}
+					}
+
+					InpostParcelsTools::inpost_update_parcel_details($parcel_details);
+				}
+			}
+		}
 	}
 
 }
