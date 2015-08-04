@@ -164,7 +164,7 @@ class AdminInpostShippingController extends ModuleAdminController
 		// Empty list is ok
 		if (!is_array($this->_list))
 		{
-			$this->displayWarning($this->l('Bad SQL query', 'Helper').'<br />'.htmlspecialchars($this->_list_error));
+			$this->displayError($this->l('Bad SQL query', 'Helper').'<br />'.htmlspecialchars($this->_list_error));
 			return false;
 		}
 
@@ -245,7 +245,7 @@ class AdminInpostShippingController extends ModuleAdminController
 					// to pay for it.
 					if (trim($_POST['parcel_id']) != '')
 					{
-						$this->errors[] = Tools::displayWarning($this->l('Failed to pay for parcel.').$error);
+						$this->errors[] = Tools::displayError($this->l('Failed to pay for parcel.').$error);
 					}
 					else
 					{
@@ -759,7 +759,7 @@ class AdminInpostShippingController extends ModuleAdminController
 						// but fail to pay for it.
 						if (trim($id_order) != '')
 						{
-							$this->errors[] = Tools::displayWarning($this->l('Failed to pay for parcel. Order: ').$id_order.' '.$error);
+							$this->errors[] = Tools::displayError($this->l('Failed to pay for parcel. Order: ').$id_order.' '.$error);
 						}
 						else
 						{
