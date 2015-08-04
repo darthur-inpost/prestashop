@@ -145,6 +145,28 @@ class InpostShipping extends Module
 		{
 			$return &= Db::getInstance()->execute($s);
 		}
+
+		// Install a line into the database table so that when a real
+		// order comes in the Bulk actions option is enabled.
+		$return &= Db::getInstance()->execute('INSERT INTO '._DB_PREFIX_.'inpostshipping (
+		order_id,
+		parcel_id,
+		parcel_status,
+		parcel_description,
+		parcel_receiver_email,
+		parcel_receiver_phone,
+		parcel_size,
+		parcel_tmp_id,
+		parcel_target_machine_id,
+		parcel_target_machine_town,
+		parcel_target_machine_street,
+		parcel_target_machine_building)
+		VALUES (0, "TEST", "Created", "Test Parcel", "test@test.com",
+			"726354211", "A", "821836298297283",
+			"UKMIL10111", "Milton Keynes",
+			"Monks Way", "123"
+		);');
+
 		return $return;
 	}
 
